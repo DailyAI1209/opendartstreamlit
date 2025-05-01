@@ -1,12 +1,10 @@
 import streamlit as st
-import OpenDartReader
 import pandas as pd
+from OpenDartReader import OpenDartReader  # ✅ 핵심 수정
 
-# Streamlit Cloud secrets에서 API 키 가져오기
 API_KEY = st.secrets["API_KEY"]
 dart = OpenDartReader(API_KEY)
 
-# 2. 페이지 기본 설정
 st.set_page_config(page_title="재무제표 챗봇", layout="centered")
 st.title("📊 재무제표 조회 챗봇")
 
