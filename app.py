@@ -2,8 +2,8 @@ import streamlit as st
 import OpenDartReader
 import pandas as pd
 
-# 1. DART API KEY 설정
-API_KEY = 'ead29c380197353c60f0963443c43523e8f5daed'  # 🔐 필수: 본인의 DART API 키 입력
+# Streamlit Cloud secrets에서 API 키 가져오기
+API_KEY = st.secrets["API_KEY"]
 dart = OpenDartReader(API_KEY)
 
 # 2. 페이지 기본 설정
