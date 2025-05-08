@@ -3,9 +3,22 @@ import OpenDartReader
 import pandas as pd
 from datetime import datetime
 from io import BytesIO
+import os
 
 # ✅ DART API 키를 Streamlit secrets에서 가져오기
-api_key = st.secrets["DART_API_KEY"]
+try:
+    # 로컬 개발 환경일 경우
+    api_key = st.secrets["DART_API_KEY"]
+except:
+    # Streamlit Cloud 환경일 경우
+    api_key = os.environ.get("DART_API_KEY", "")
+
+# API 키 확인
+if not api_key:
+    st.error("DART API 키가 설정되지 않았습니다.")
+    st.stop()
+
+# OpenDartReader 초기화
 dart = OpenDartReader(api_key)
 
 # ✅ Streamlit 기본 설정
