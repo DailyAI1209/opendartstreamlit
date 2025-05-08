@@ -13,9 +13,10 @@ def handle_error(error_msg):
     st.error(f"❌ 오류 발생: {error_msg}")
     st.stop()
 
-# OpenDartReader 가져오기 시도
+# OpenDartReader 가져오기 시도 - 수정된 부분
 try:
-    import OpenDartReader
+    # 올바른 import 방식으로 수정
+    from OpenDartReader import OpenDartReader
 except ImportError:
     handle_error("OpenDartReader 패키지를 설치해주세요. (pip install opendartreader)")
 
@@ -51,6 +52,7 @@ year = st.selectbox("조회할 연도를 선택하세요", range(current_year-5,
 # OpenDartReader 초기화 (try-except로 감싸서 오류 처리)
 try:
     with st.spinner("DART API 연결 중..."):
+        # 올바른 클래스 호출 방식
         dart = OpenDartReader(api_key)
 except Exception as e:
     error_details = traceback.format_exc()
