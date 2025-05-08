@@ -19,6 +19,15 @@ DART에서 실시간으로 재무제표 데이터를 가져올게요.
 company_name = st.text_input("회사명을 입력해주세요 (예: 삼성전자)", "삼성전자")
 year = st.text_input("조회할 연도 (예: 2022)", "2022")
 
+# 재무제표 유형 매핑 정의
+sj_mapping = {
+    'BS': '재무상태표',
+    'IS': '손익계산서',
+    'CIS': '포괄손익계산서',
+    'CF': '현금흐름표',
+    'SCE': '자본변동표'
+}
+
 # 4. 버튼 클릭 시 데이터 조회
 if st.button("📥 재무제표 조회"):
     with st.spinner("📡 DART로부터 데이터를 가져오는 중입니다..."):
@@ -29,12 +38,19 @@ if st.button("📥 재무제표 조회"):
             if df is not None and not df.empty:
                 st.success(f"✅ {company_name}의 {year}년 재무제표입니다.")
                 
-                # 컬럼 이름 확인 및 매핑
+                # 표시할 컬럼 선택
                 available_columns = []
                 
                 # sj_nm 또는 sj_div 확인
-                sj_column = 'sj_nm' if 'sj_nm' in df.columns else 'sj_div'
-                available_columns.append(sj_column)
+                if 'sj_nm' in df.columns:
+                    sj_column = 'sj_nm'
+                elif 'sj_div' in df.columns:
+                    sj_column = 'sj_div'
+                else:
+                    sj_column = None
+                
+                if sj_column:
+                    available_columns.append(sj_column)
                 
                 # account_nm은 필수
                 available_columns.append('account_nm')
@@ -47,14 +63,18 @@ if st.button("📥 재무제표 조회"):
                     available_columns.append('frmtrm_amount')
                 
                 # 표시할 데이터 선택
-                df_show = df[available_columns]
+                df_show = df[available_columns].copy()
                 
-                # 컬럼 이름 통일 (첫 번째 이미지 형태로)
-                column_mapping = {
-                    'sj_div': 'sj_nm',
-                    'sj_nm': 'sj_nm'
-                }
-                df_show = df_show.rename(columns=column_mapping)
+                # sj_nm/sj_div 컬럼의 약자를 전체 이름으로 변환
+                if sj_column:
+                    # 컬럼명을 'sj_nm'으로 통일
+                    if sj_column == 'sj_div':
+                        df_show.rename(columns={'sj_div': 'sj_nm'}, inplace=True)
+                    
+                    # 약자를 전체 이름으로 변환
+                    df_show['sj_nm'] = df_show['sj_nm'].apply(
+                        lambda x: sj_mapping.get(x, x) if x in sj_mapping else x
+                    )
                 
                 st.dataframe(df_show, use_container_width=True)
                 
