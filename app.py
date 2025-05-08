@@ -1,5 +1,5 @@
 import streamlit as st
-import OpenDartReader
+import OpenDartReader  # 직접 모듈을 import (from을 사용하지 않음)
 import pandas as pd
 from datetime import datetime
 from io import BytesIO
@@ -32,7 +32,7 @@ if not api_key:
     """)
     st.stop()  # API 키가 없으면 여기서 실행 중단
 
-# OpenDartReader 초기화
+# OpenDartReader 초기화 - import 방식 변경에 맞게 수정
 dart = OpenDartReader.OpenDartReader(api_key)
 
 st.markdown("회사명을 입력하면 해당 회사의 재무제표를 불러와 보여드립니다.")
@@ -51,7 +51,7 @@ if st.button("📥 재무제표 조회 및 다운로드"):
     else:
         with st.spinner(f"'{company_name}'의 재무제표를 조회 중입니다..."):
             try:
-                # 회사 코드 찾기
+                # 회사 코드 찾기 (find_corp_code 메소드 사용)
                 corp_code = dart.find_corp_code(company_name)
                 
                 if corp_code is None:
