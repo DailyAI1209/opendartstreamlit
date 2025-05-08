@@ -26,7 +26,13 @@ if st.button("📥 재무제표 조회"):
             df = dart.finstate(company_name.strip(), int(year))
             if df is not None and not df.empty:
                 st.success(f"✅ {company_name}의 {year}년 재무제표입니다.")
-                df_show = df[['sj_div', 'account_nm', 'thstrm_amount', 'frmtrm_amount']]
+                
+                # 필요한 컬럼 선택 (frmtrm_amount가 없을 경우 대비)
+                available_columns = ['sj_div', 'account_nm', 'thstrm_amount']
+                if 'frmtrm_amount' in df.columns:
+                    available_columns.append('frmtrm_amount')
+                
+                df_show = df[available_columns]
                 st.dataframe(df_show, use_container_width=True)
                 
                 # Excel 다운로드 기능 추가
