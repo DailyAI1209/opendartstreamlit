@@ -1,6 +1,6 @@
 streamlit
 pandas
-OpenDartReader==2.9.1
+OpenDartReader==0.2.3
 xlsxwriter
 beautifulsoup4  # OpenDartReader에서 사용할 수 있음
 requests  # API 요청에 필요
