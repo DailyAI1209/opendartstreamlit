@@ -1,69 +1,42 @@
 import streamlit as st
-import OpenDartReader
 import pandas as pd
-from datetime import datetime
-from io import BytesIO
-import os
+from OpenDartReader import OpenDartReader  # ✅ 핵심 수정
 
-# ✅ DART API 키를 Streamlit secrets에서 가져오기
-try:
-    # 로컬 개발 환경일 경우
-    api_key = st.secrets["DART_API_KEY"]
-except:
-    # Streamlit Cloud 환경일 경우
-    api_key = os.environ.get("DART_API_KEY", "")
+API_KEY = st.secrets["API_KEY"]
+dart = OpenDartReader(API_KEY)
 
-# API 키 확인
-if not api_key:
-    st.error("DART API 키가 설정되지 않았습니다.")
-    st.stop()
+st.set_page_config(page_title="재무제표 챗봇", layout="centered")
+st.title("📊 재무제표 조회 챗봇")
 
-# OpenDartReader 초기화
-dart = OpenDartReader(api_key)
+st.markdown("""
+안녕하세요! 🧾  
+원하는 **회사명**과 **연도**를 입력하면,  
+DART에서 실시간으로 재무제표 데이터를 가져올게요.
+""")
 
-# ✅ Streamlit 기본 설정
-st.set_page_config(page_title="재무제표 조회 앱", layout="centered")
-st.title("📊 재무제표 조회 및 다운로드 앱")
+# 3. 사용자 입력 UI
+company_name = st.text_input("회사명을 입력해주세요 (예: 삼성전자)", "삼성전자")
+year = st.text_input("조회할 연도 (예: 2022)", "2022")
 
-st.markdown("회사명을 입력하면 최근 연도의 재무제표를 불러와 보여드릴게요.")
-
-# ✅ 사용자 입력
-company_name = st.text_input("회사명을 입력하세요 (예: 삼성전자)", "삼성전자")
-
-# ✅ 조회 버튼
-if st.button("📥 재무제표 조회 및 다운로드"):
-    with st.spinner("데이터를 불러오는 중입니다..."):
-        corp_code = dart.find_corp_code(company_name)
-
-        if corp_code is None:
-            st.error(f"❌ '{company_name}'의 고유번호를 찾을 수 없습니다.")
-        else:
-            year = datetime.today().year - 1
-            try:
-                fs = dart.finstate(corp_code, year)
-
-                if fs is None or fs.empty:
-                    st.warning(f"'{company_name}'의 {year}년도 재무제표를 찾을 수 없습니다.")
-                else:
-                    output_df = fs[['sj_nm', 'account_nm', 'thstrm_amount', 'frmtrm_amount']]
-                    st.success(f"✅ '{company_name}'의 {year}년 재무제표를 불러왔습니다.")
-                    st.dataframe(output_df)
-
-                    # ✅ 엑셀 파일 버퍼로 저장
-                    def to_excel(df):
-                        output = BytesIO()
-                        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                            df.to_excel(writer, index=False, sheet_name='재무제표')
-                        output.seek(0)  # 버퍼의 포인터를 처음으로 되돌림
-                        return output.getvalue()
-
-                    excel_data = to_excel(output_df)
-
-                    st.download_button(
-                        label="📂 엑셀로 다운로드",
-                        data=excel_data,
-                        file_name=f"{company_name}_{year}_재무제표.xlsx",
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                    )
-            except Exception as e:
-                st.error(f"❌ 오류 발생: {e}")
+# 4. 버튼 클릭 시 데이터 조회
+if st.button("📥 재무제표 조회"):
+    with st.spinner("📡 DART로부터 데이터를 가져오는 중입니다..."):
+        try:
+            df = dart.finstate(company_name.strip(), int(year))
+            if df is not None and not df.empty:
+                st.success(f"✅ {company_name}의 {year}년 재무제표입니다.")
+                df_show = df[['sj_div', 'account_nm', 'thstrm_amount']]
+                st.dataframe(df_show, use_container_width=True)
+                
+                # 다운로드 버튼
+                csv = df_show.to_csv(index=False).encode('utf-8-sig')
+                st.download_button(
+                    label="📤 CSV로 다운로드",
+                    data=csv,
+                    file_name=f"{company_name}_{year}_재무제표.csv",
+                    mime='text/csv'
+                )
+            else:
+                st.warning(f"⚠️ {company_name}의 {year}년 재무제표가 존재하지 않거나 공시되지 않았어요.")
+        except Exception as e:
+            st.error(f"❌ 오류 발생: {e}")
