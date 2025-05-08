@@ -1,5 +1,5 @@
 import streamlit as st
-from OpenDartReader import OpenDartReader
+import OpenDartReader
 import pandas as pd
 from datetime import datetime
 from io import BytesIO
@@ -8,18 +8,32 @@ from io import BytesIO
 st.set_page_config(page_title="재무제표 조회 앱", layout="centered")
 st.title("📊 재무제표 조회 및 다운로드 앱")
 
-# ✅ DART API 키 설정 (Streamlit Cloud의 secrets에서 가져오거나 직접 입력)
+# ✅ DART API 키 설정 (사용자 입력 또는 Streamlit Cloud의 secrets에서 가져오기)
+api_key = None
+
+# Streamlit Cloud의 secrets에서 가져오기 시도
 try:
-    # Streamlit Cloud에서 secrets 사용
     api_key = st.secrets["DART_API_KEY"]
-    st.success("✅ API 키를 성공적으로 불러왔습니다.")
+    st.success("✅ Secrets에서 API 키를 성공적으로 불러왔습니다.")
 except Exception:
-    # 직접 입력 또는 하드코딩
-    api_key = 'ead29c380197353c60f0963443c43523e8f5daed'  # 발급받은 키로 수정
-    st.success("✅ API 키를 성공적으로 불러왔습니다.")
+    # API 키가 없는 경우 사용자에게 입력 요청
+    api_key = st.text_input("DART API 키를 입력하세요", type="password")
+    if api_key:
+        st.success("✅ API 키가 입력되었습니다.")
+
+# API 키 입력 확인
+if not api_key:
+    st.warning("⚠️ DART API 키를 입력하거나 Streamlit Secrets에 설정해야 합니다.")
+    st.markdown("""
+    **API 키 발급 방법:**
+    1. [DART 오픈API](https://opendart.fss.or.kr/) 사이트에 접속
+    2. 회원가입 후 API 키 신청
+    3. 발급받은 키를 위 입력란에 붙여넣기
+    """)
+    st.stop()  # API 키가 없으면 여기서 실행 중단
 
 # OpenDartReader 초기화
-dart = OpenDartReader(api_key)
+dart = OpenDartReader.OpenDartReader(api_key)
 
 st.markdown("회사명을 입력하면 해당 회사의 재무제표를 불러와 보여드립니다.")
 
@@ -37,19 +51,8 @@ if st.button("📥 재무제표 조회 및 다운로드"):
     else:
         with st.spinner(f"'{company_name}'의 재무제표를 조회 중입니다..."):
             try:
-                # 회사 코드 찾기 (수정된 부분: corp_code -> find_corp_code)
-                try:
-                    # find_corp_code 메소드 시도
-                    corp_code = dart.find_corp_code(company_name)
-                except AttributeError:
-                    # find_corp_code가 없으면 get_corp_code 시도
-                    try:
-                        corp_code = dart.get_corp_code(company_name)
-                    except AttributeError:
-                        # 회사명으로 코드 검색 시도
-                        corps = dart.corp_codes
-                        filtered = corps[corps['corp_name'] == company_name]
-                        corp_code = None if filtered.empty else filtered.iloc[0]['corp_code']
+                # 회사 코드 찾기
+                corp_code = dart.find_corp_code(company_name)
                 
                 if corp_code is None:
                     st.error(f"❌ '{company_name}'의 고유번호를 찾을 수 없습니다. 회사명을 정확히 입력해주세요.")
@@ -100,10 +103,11 @@ if st.button("📥 재무제표 조회 및 다운로드"):
 st.markdown("---")
 st.markdown("### 사용 방법")
 st.markdown("""
-1. 회사명을 입력하세요 (예: 삼성전자, SK하이닉스 등)
-2. 조회할 연도를 선택하세요
-3. '재무제표 조회 및 다운로드' 버튼을 클릭하세요
-4. 재무제표 데이터를 확인하고 필요시 엑셀로 다운로드하세요
+1. DART API 키를 입력하세요 (처음 한 번만)
+2. 회사명을 입력하세요 (예: 삼성전자, SK하이닉스 등)
+3. 조회할 연도를 선택하세요
+4. '재무제표 조회 및 다운로드' 버튼을 클릭하세요
+5. 재무제표 데이터를 확인하고 필요시 엑셀로 다운로드하세요
 """)
 
 # 도움말
@@ -111,6 +115,9 @@ with st.expander("❓ 자주 묻는 질문"):
     st.markdown("""
     **Q: API 키는 어디서 발급받나요?**  
     A: [DART 오픈API](https://opendart.fss.or.kr/) 사이트에서 회원가입 후 발급받을 수 있습니다.
+    
+    **Q: 내 API 키는 어디에 저장되나요?**  
+    A: API 키는 세션 중에만 임시로 사용되며 서버에 저장되지 않습니다. Streamlit Cloud를 사용하는 경우 Secrets를 통해 안전하게 관리할 수 있습니다.
     
     **Q: 특정 회사가 검색되지 않아요.**  
     A: 정확한 회사명을 입력했는지 확인해주세요. 상장사 기준으로 검색됩니다.
