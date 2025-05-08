@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 from OpenDartReader import OpenDartReader
 from io import BytesIO
+import time
 
 API_KEY = st.secrets["API_KEY"]
 dart = OpenDartReader(API_KEY)
@@ -23,33 +24,100 @@ year = st.text_input("조회할 연도 (예: 2022)", "2022")
 if st.button("📥 재무제표 조회"):
     with st.spinner("📡 DART로부터 데이터를 가져오는 중입니다..."):
         try:
-            # 첫 번째 코드와 동일한 방식으로 재무제표 가져오기
+            # 디버깅을 위한 로그 추가
+            debug_log = st.empty()
+            debug_log.info(f"검색 시작: {company_name}, {year}년도")
+            
+            # 다양한 방식으로 시도
+            fs_options = ['OFS', 'CFS']  # OFS(재무제표), CFS(연결재무제표)
+            reprt_options = ['11011', '11012', '11013', '11014']  # 1분기, 반기, 3분기, 사업
+            
+            df = None
+            
+            # 먼저 기본 방식으로 시도
+            debug_log.info("기본 방식으로 시도 중...")
             df = dart.finstate(company_name.strip(), int(year))
+            
+            # 기본 방식이 실패하면 다양한 파라미터 조합 시도
+            if df is None or df.empty or len(df) < 5:  # 충분한 데이터가 없으면
+                debug_log.info("상세 데이터를 찾기 위해 다른 옵션 시도 중...")
+                
+                for fs_div in fs_options:
+                    for reprt_code in reprt_options:
+                        try:
+                            debug_log.info(f"시도: fs_div={fs_div}, reprt_code={reprt_code}")
+                            temp_df = dart.finstate(company_name.strip(), int(year), fs_div=fs_div, reprt_code=reprt_code)
+                            
+                            # 충분한 데이터가 있으면 선택
+                            if temp_df is not None and not temp_df.empty and len(temp_df) > 5:
+                                debug_log.success(f"성공! fs_div={fs_div}, reprt_code={reprt_code}에서 {len(temp_df)}개 항목 발견")
+                                df = temp_df
+                                break
+                            
+                            # API 요청 간 간격 두기
+                            time.sleep(0.5)
+                        except Exception as e:
+                            debug_log.warning(f"옵션 시도 중 오류: {e}")
+                    
+                    if df is not None and not df.empty and len(df) > 5:
+                        break
+            
+            # 디버그 로그 제거
+            debug_log.empty()
             
             if df is not None and not df.empty:
                 st.success(f"✅ {company_name}의 {year}년 재무제표입니다.")
                 
-                # 표시할 컬럼 선택 (두 번째 코드의 컬럼 구성 적용)
-                if 'sj_nm' in df.columns and 'account_nm' in df.columns and 'thstrm_amount' in df.columns:
-                    # 두 번째 코드의 방식대로 컬럼 선택
-                    if 'frmtrm_amount' in df.columns:
-                        df_show = df[['sj_nm', 'account_nm', 'thstrm_amount', 'frmtrm_amount']]
-                    else:
-                        df_show = df[['sj_nm', 'account_nm', 'thstrm_amount']]
+                # 표시할 컬럼 선택
+                available_columns = []
+                
+                # sj_nm 또는 sj_div 확인
+                if 'sj_nm' in df.columns:
+                    sj_column = 'sj_nm'
+                elif 'sj_div' in df.columns:
+                    sj_column = 'sj_div'
                 else:
-                    # 첫 번째 코드의 방식대로 컬럼 선택
-                    available_columns = ['account_nm', 'thstrm_amount']
-                    if 'sj_div' in df.columns:
-                        available_columns.insert(0, 'sj_div')
-                    elif 'sj_nm' in df.columns:
-                        available_columns.insert(0, 'sj_nm')
-                    if 'frmtrm_amount' in df.columns:
-                        available_columns.append('frmtrm_amount')
-                    df_show = df[available_columns]
+                    sj_column = None
+                
+                if sj_column:
+                    available_columns.append(sj_column)
+                
+                # account_nm은 필수
+                available_columns.append('account_nm')
+                
+                # 금액 컬럼 추가
+                if 'thstrm_amount' in df.columns:
+                    available_columns.append('thstrm_amount')
+                
+                if 'frmtrm_amount' in df.columns:
+                    available_columns.append('frmtrm_amount')
+                
+                # 표시할 데이터 선택
+                df_show = df[available_columns].copy()
+                
+                # 재무제표 유형 매핑 정의
+                sj_mapping = {
+                    'BS': '재무상태표',
+                    'IS': '손익계산서',
+                    'CIS': '포괄손익계산서',
+                    'CF': '현금흐름표',
+                    'SCE': '자본변동표'
+                }
+                
+                # sj_nm/sj_div 컬럼의 약자를 전체 이름으로 변환
+                if sj_column:
+                    # 컬럼명을 'sj_nm'으로 통일
+                    if sj_column == 'sj_div':
+                        df_show.rename(columns={'sj_div': 'sj_nm'}, inplace=True)
+                    
+                    # 약자를 전체 이름으로 변환
+                    df_show['sj_nm'] = df_show['sj_nm'].apply(
+                        lambda x: sj_mapping.get(x, x) if x in sj_mapping else x
+                    )
                 
                 st.dataframe(df_show, use_container_width=True)
                 
-                # Excel 다운로드 기능 추가 (두 번째 코드의 엑셀 다운로드 방식)
+                # Excel 다운로드 기능 추가
                 def to_excel(df):
                     output = BytesIO()
                     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
