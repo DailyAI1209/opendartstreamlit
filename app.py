@@ -56,35 +56,57 @@ if st.button("📥 재무제표 조회 및 다운로드"):
                         if fs is None or fs.empty:
                             st.warning(f"'{company_name}'의 {selected_year}년도 재무제표를 찾을 수 없습니다.")
                         else:
-                            output_df = fs[['sj_nm', 'account_nm', 'thstrm_amount', 'frmtrm_amount']]
+                            # 데이터프레임 컬럼 확인 및 필요한 컬럼만 선택
+                            st.write("가져온 데이터 컬럼:", fs.columns.tolist())
                             
-                            # 컬럼명을 한글로 변경
-                            output_df = output_df.rename(columns={
+                            # 필요한 컬럼이 있는지 확인
+                            required_columns = ['sj_nm', 'account_nm', 'thstrm_amount', 'frmtrm_amount']
+                            available_columns = [col for col in required_columns if col in fs.columns]
+                            
+                            if len(available_columns) < 2:  # 최소한 계정과목과 당기금액은 있어야 함
+                                st.error("필요한 컬럼이 데이터에 존재하지 않습니다.")
+                                st.write("데이터 샘플:", fs.head())
+                                st.stop()
+                            
+                            # 사용 가능한 컬럼만 선택
+                            output_df = fs[available_columns].copy()
+                            
+                            # 컬럼명을 한글로 변경 (존재하는 컬럼만)
+                            column_mapping = {
                                 'sj_nm': '재무제표명',
                                 'account_nm': '계정과목',
                                 'thstrm_amount': f'{selected_year}년',
                                 'frmtrm_amount': f'{selected_year-1}년'
-                            })
+                            }
+                            
+                            # 존재하는 컬럼에 대해서만 이름 변경
+                            rename_cols = {col: column_mapping[col] for col in available_columns if col in column_mapping}
+                            output_df = output_df.rename(columns=rename_cols)
                             
                             st.success(f"✅ '{company_name}'의 {selected_year}년 재무제표를 불러왔습니다.")
-                            st.dataframe(output_df)
+                            
+                            # 데이터가 존재하는 경우에만 표시 및 다운로드 제공
+                            if not output_df.empty:
+                                st.dataframe(output_df)
 
-                            # ✅ 엑셀 파일 버퍼로 저장
-                            def to_excel(df):
-                                output = BytesIO()
-                                with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                                    df.to_excel(writer, index=False, sheet_name='재무제표')
-                                output.seek(0)  # 버퍼의 포인터를 처음으로 되돌림
-                                return output.getvalue()
+                                # ✅ 엑셀 파일 버퍼로 저장
+                                def to_excel(df):
+                                    output = BytesIO()
+                                    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                                        df.to_excel(writer, index=False, sheet_name='재무제표')
+                                    output.seek(0)  # 버퍼의 포인터를 처음으로 되돌림
+                                    return output.getvalue()
 
-                            excel_data = to_excel(output_df)
+                                excel_data = to_excel(output_df)
 
-                            st.download_button(
-                                label="📂 엑셀로 다운로드",
-                                data=excel_data,
-                                file_name=f"{company_name}_{selected_year}_재무제표.xlsx",
-                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                            )
+                                st.download_button(
+                                    label="📂 엑셀로 다운로드",
+                                    data=excel_data,
+                                    file_name=f"{company_name}_{selected_year}_재무제표.xlsx",
+                                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                                )
+                            else:
+                                st.warning("데이터가 비어있어 표시할 내용이 없습니다.")
                     except Exception as e:
                         st.error(f"❌ 재무제표 조회 중 오류 발생: {e}")
             except Exception as e:
