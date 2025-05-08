@@ -6,12 +6,12 @@ import os
 
 # 패키지 설치 확인 및 설치
 try:
-    import OpenDartReader
+    from opendartreader import OpenDartReader
 except ImportError:
     st.error("OpenDartReader 패키지를 설치하는 중입니다. 잠시만 기다려주세요...")
     import subprocess
     subprocess.check_call(["pip", "install", "opendartreader"])
-    import OpenDartReader
+    from opendartreader import OpenDartReader
     st.experimental_rerun()
 
 # ✅ DART API 키 설정 (Streamlit 시크릿에서 가져오기)
