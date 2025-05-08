@@ -23,16 +23,39 @@ year = st.text_input("조회할 연도 (예: 2022)", "2022")
 if st.button("📥 재무제표 조회"):
     with st.spinner("📡 DART로부터 데이터를 가져오는 중입니다..."):
         try:
+            # dart.finstate() 함수로 재무제표 가져오기
             df = dart.finstate(company_name.strip(), int(year))
+            
             if df is not None and not df.empty:
                 st.success(f"✅ {company_name}의 {year}년 재무제표입니다.")
                 
-                # 필요한 컬럼 선택 (frmtrm_amount가 없을 경우 대비)
-                available_columns = ['sj_div', 'account_nm', 'thstrm_amount']
+                # 컬럼 이름 확인 및 매핑
+                available_columns = []
+                
+                # sj_nm 또는 sj_div 확인
+                sj_column = 'sj_nm' if 'sj_nm' in df.columns else 'sj_div'
+                available_columns.append(sj_column)
+                
+                # account_nm은 필수
+                available_columns.append('account_nm')
+                
+                # 금액 컬럼 추가
+                if 'thstrm_amount' in df.columns:
+                    available_columns.append('thstrm_amount')
+                
                 if 'frmtrm_amount' in df.columns:
                     available_columns.append('frmtrm_amount')
                 
+                # 표시할 데이터 선택
                 df_show = df[available_columns]
+                
+                # 컬럼 이름 통일 (첫 번째 이미지 형태로)
+                column_mapping = {
+                    'sj_div': 'sj_nm',
+                    'sj_nm': 'sj_nm'
+                }
+                df_show = df_show.rename(columns=column_mapping)
+                
                 st.dataframe(df_show, use_container_width=True)
                 
                 # Excel 다운로드 기능 추가
