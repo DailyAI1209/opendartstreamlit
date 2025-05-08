@@ -16,9 +16,11 @@ except ImportError:
 
 # ✅ DART API 키 설정 (Streamlit 시크릿에서 가져오기)
 try:
+    # Streamlit Cloud 시크릿 접근 방법
     api_key = st.secrets["DART_API_KEY"]
-except KeyError:
-    st.error("DART API 키가 설정되어 있지 않습니다. Streamlit Cloud에서 시크릿을 설정해주세요.")
+    dart = OpenDartReader(api_key)
+except Exception as e:
+    st.error(f"DART API 키 설정 오류: {e}")
     st.info("Streamlit Cloud에서 'Settings' > 'Secrets' 메뉴로 이동하여 'DART_API_KEY'를 추가해주세요.")
     st.stop()
 
