@@ -30,8 +30,8 @@ if st.button("📥 재무제표 조회"):
             if df is not None and not df.empty:
                 st.success(f"✅ {company_name}의 {year}년 재무제표입니다.")
                 
-                # 두 번째 코드에서 사용한 컬럼 형식으로 변경
-                df_show = df[['sj_nm', 'account_nm', 'thstrm_amount', 'frmtrm_amount']]
+                # 첫 번째 코드의 컬럼 형식 유지
+                df_show = df[['sj_div', 'account_nm', 'thstrm_amount']]
                 st.dataframe(df_show, use_container_width=True)
                 
                 # CSV 다운로드 버튼
