@@ -37,8 +37,19 @@ if st.button("📥 재무제표 조회 및 다운로드"):
     else:
         with st.spinner(f"'{company_name}'의 재무제표를 조회 중입니다..."):
             try:
-                # 회사 코드 찾기 (수정된 부분: find_corp_code -> corp_code)
-                corp_code = dart.corp_code(company_name)
+                # 회사 코드 찾기 (수정된 부분: corp_code -> find_corp_code)
+                try:
+                    # find_corp_code 메소드 시도
+                    corp_code = dart.find_corp_code(company_name)
+                except AttributeError:
+                    # find_corp_code가 없으면 get_corp_code 시도
+                    try:
+                        corp_code = dart.get_corp_code(company_name)
+                    except AttributeError:
+                        # 회사명으로 코드 검색 시도
+                        corps = dart.corp_codes
+                        filtered = corps[corps['corp_name'] == company_name]
+                        corp_code = None if filtered.empty else filtered.iloc[0]['corp_code']
                 
                 if corp_code is None:
                     st.error(f"❌ '{company_name}'의 고유번호를 찾을 수 없습니다. 회사명을 정확히 입력해주세요.")
