@@ -1,5 +1,5 @@
 import streamlit as st
-import OpenDartReader  # 직접 모듈을 import (from을 사용하지 않음)
+import OpenDartReader
 import pandas as pd
 from datetime import datetime
 from io import BytesIO
@@ -32,7 +32,7 @@ if not api_key:
     """)
     st.stop()  # API 키가 없으면 여기서 실행 중단
 
-# OpenDartReader 초기화 - import 방식 변경에 맞게 수정
+# OpenDartReader 초기화
 dart = OpenDartReader.OpenDartReader(api_key)
 
 st.markdown("회사명을 입력하면 해당 회사의 재무제표를 불러와 보여드립니다.")
@@ -51,53 +51,44 @@ if st.button("📥 재무제표 조회 및 다운로드"):
     else:
         with st.spinner(f"'{company_name}'의 재무제표를 조회 중입니다..."):
             try:
-                # 회사 코드 찾기 (find_corp_code 메소드 사용)
-                corp_code = dart.find_corp_code(company_name)
+                # 직접 회사명 사용 (corp_code 탐색 단계 건너뛰기)
+                fs = dart.finstate(company_name, year)
                 
-                if corp_code is None:
-                    st.error(f"❌ '{company_name}'의 고유번호를 찾을 수 없습니다. 회사명을 정확히 입력해주세요.")
+                if fs is None or fs.empty:
+                    st.warning(f"⚠️ '{company_name}'의 {year}년도 재무제표를 찾을 수 없습니다.")
                 else:
-                    # 재무제표 가져오기
-                    try:
-                        fs = dart.finstate(corp_code, year)
-                        
-                        if fs is None or fs.empty:
-                            st.warning(f"⚠️ '{company_name}'의 {year}년도 재무제표를 찾을 수 없습니다.")
-                        else:
-                            # 필요한 컬럼만 선택
-                            output_df = fs[['sj_nm', 'account_nm', 'thstrm_amount', 'frmtrm_amount']]
-                            
-                            # 컬럼명 한글화
-                            output_df = output_df.rename(columns={
-                                'sj_nm': '재무제표 종류',
-                                'account_nm': '계정과목',
-                                'thstrm_amount': f'{year}년',
-                                'frmtrm_amount': f'{year-1}년'
-                            })
-                            
-                            st.success(f"✅ '{company_name}'의 {year}년 재무제표를 불러왔습니다.")
-                            st.dataframe(output_df)
-                            
-                            # 엑셀 파일 버퍼로 저장
-                            def to_excel(df):
-                                output = BytesIO()
-                                with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                                    df.to_excel(writer, index=False, sheet_name='재무제표')
-                                output.seek(0)  # 버퍼의 포인터를 처음으로 되돌림
-                                return output.getvalue()
+                    # 필요한 컬럼만 선택
+                    output_df = fs[['sj_nm', 'account_nm', 'thstrm_amount', 'frmtrm_amount']]
+                    
+                    # 컬럼명 한글화
+                    output_df = output_df.rename(columns={
+                        'sj_nm': '재무제표 종류',
+                        'account_nm': '계정과목',
+                        'thstrm_amount': f'{year}년',
+                        'frmtrm_amount': f'{year-1}년'
+                    })
+                    
+                    st.success(f"✅ '{company_name}'의 {year}년 재무제표를 불러왔습니다.")
+                    st.dataframe(output_df)
+                    
+                    # 엑셀 파일 버퍼로 저장
+                    def to_excel(df):
+                        output = BytesIO()
+                        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                            df.to_excel(writer, index=False, sheet_name='재무제표')
+                        output.seek(0)  # 버퍼의 포인터를 처음으로 되돌림
+                        return output.getvalue()
 
-                            excel_data = to_excel(output_df)
+                    excel_data = to_excel(output_df)
 
-                            st.download_button(
-                                label="📂 엑셀로 다운로드",
-                                data=excel_data,
-                                file_name=f"{company_name}_{year}_재무제표.xlsx",
-                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                            )
-                    except Exception as e:
-                        st.error(f"❌ 재무제표 조회 중 오류 발생: {e}")
+                    st.download_button(
+                        label="📂 엑셀로 다운로드",
+                        data=excel_data,
+                        file_name=f"{company_name}_{year}_재무제표.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    )
             except Exception as e:
-                st.error(f"❌ 회사 정보 조회 중 오류 발생: {e}")
+                st.error(f"❌ 오류 발생: {e}")
 
 # 푸터 추가
 st.markdown("---")
