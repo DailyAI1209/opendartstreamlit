@@ -1,44 +1,66 @@
 import streamlit as st
 import OpenDartReader
 import pandas as pd
+from datetime import datetime
+from io import BytesIO
 
-# Streamlit Cloud secrets에서 API 키 가져오기
-API_KEY = st.secrets["API_KEY"]
-dart = OpenDartReader(API_KEY)
+# ✅ Streamlit 기본 설정
+st.set_page_config(page_title="재무제표 조회 앱", layout="centered")
+st.title("📊 재무제표 조회 및 다운로드 앱")
 
-# 2. 페이지 기본 설정
-st.set_page_config(page_title="재무제표 챗봇", layout="centered")
-st.title("📊 재무제표 조회 챗봇")
+st.markdown("회사명과 연도를 입력하면 재무제표를 불러와 보여드립니다.")
 
-st.markdown("""
-안녕하세요! 🧾  
-원하는 **회사명**과 **연도**를 입력하면,  
-DART에서 실시간으로 재무제표 데이터를 가져올게요.
-""")
+# ✅ Streamlit Cloud의 secrets에서 API 키 가져오기
+api_key = st.secrets["API_KEY"]
+dart = OpenDartReader(api_key)
 
-# 3. 사용자 입력 UI
-company_name = st.text_input("회사명을 입력해주세요 (예: 삼성전자)", "삼성전자")
-year = st.text_input("조회할 연도 (예: 2022)", "2022")
+# ✅ 사용자 입력
+company_name = st.text_input("회사명을 입력하세요 (예: 삼성전자)", "삼성전자")
 
-# 4. 버튼 클릭 시 데이터 조회
+# 연도 선택 추가
+current_year = datetime.today().year
+year = st.selectbox("조회할 연도", 
+                   options=list(range(current_year-5, current_year)),
+                   index=0)
+
+# ✅ 조회 버튼
 if st.button("📥 재무제표 조회"):
     with st.spinner("📡 DART로부터 데이터를 가져오는 중입니다..."):
         try:
-            df = dart.finstate(company_name.strip(), int(year))
-            if df is not None and not df.empty:
-                st.success(f"✅ {company_name}의 {year}년 재무제표입니다.")
-                df_show = df[['sj_div', 'account_nm', 'thstrm_amount']]
-                st.dataframe(df_show, use_container_width=True)
-                
-                # 다운로드 버튼
-                csv = df_show.to_csv(index=False).encode('utf-8-sig')
+            # 회사명으로 직접 조회
+            fs = dart.finstate(company_name, year)
+            
+            if fs is None or fs.empty:
+                # 회사명으로 조회 실패 시 고유번호로 재시도
+                corp_code = dart.find_corp_code(company_name)
+                if corp_code is None:
+                    st.error(f"❌ '{company_name}'의 고유번호를 찾을 수 없습니다.")
+                else:
+                    fs = dart.finstate(corp_code, year)
+                    if fs is None or fs.empty:
+                        st.warning(f"'{company_name}'의 {year}년도 재무제표를 찾을 수 없습니다.")
+            
+            if fs is not None and not fs.empty:
+                output_df = fs[['sj_nm', 'account_nm', 'thstrm_amount', 'frmtrm_amount']]
+                st.success(f"✅ '{company_name}'의 {year}년 재무제표를 불러왔습니다.")
+                st.dataframe(output_df, use_container_width=True)
+
+                # ✅ 엑셀 파일 다운로드 버튼
+                def to_excel(df):
+                    output = BytesIO()
+                    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                        df.to_excel(writer, index=False, sheet_name='재무제표')
+                    output.seek(0)
+                    return output.getvalue()
+
+                excel_data = to_excel(output_df)
+
                 st.download_button(
-                    label="📤 CSV로 다운로드",
-                    data=csv,
-                    file_name=f"{company_name}_{year}_재무제표.csv",
-                    mime='text/csv'
+                    label="📂 엑셀로 다운로드",
+                    data=excel_data,
+                    file_name=f"{company_name}_{year}_재무제표.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 )
-            else:
-                st.warning(f"⚠️ {company_name}의 {year}년 재무제표가 존재하지 않거나 공시되지 않았어요.")
+                
         except Exception as e:
             st.error(f"❌ 오류 발생: {e}")
