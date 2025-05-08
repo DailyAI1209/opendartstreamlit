@@ -32,47 +32,112 @@ sj_mapping = {
 if st.button("📥 재무제표 조회"):
     with st.spinner("📡 DART로부터 데이터를 가져오는 중입니다..."):
         try:
-            # 회사 정보 찾기 시도
-            company_info = None
-            corp_list = dart.corp_codes
+            # 기본 방식으로 재무제표 조회 시도
+            df = dart.finstate(company_name.strip(), int(year))
             
-            for corp in corp_list:
-                if company_name in corp['corp_name']:
-                    company_info = corp
-                    break
-            
-            if company_info is None:
-                st.error(f"❌ '{company_name}'의 정보를 찾을 수 없습니다.")
-            else:
-                # 재무제표 가져오기
-                corp_code = company_info['corp_code']
+            if df is not None and not df.empty:
+                st.success(f"✅ {company_name}의 {year}년 재무제표입니다.")
                 
-                # 다양한 보고서 코드 시도
+                # 표시할 컬럼 선택
+                available_columns = []
+                
+                # sj_nm 또는 sj_div 확인
+                if 'sj_nm' in df.columns:
+                    sj_column = 'sj_nm'
+                elif 'sj_div' in df.columns:
+                    sj_column = 'sj_div'
+                else:
+                    sj_column = None
+                
+                if sj_column:
+                    available_columns.append(sj_column)
+                
+                # account_nm은 필수
+                available_columns.append('account_nm')
+                
+                # 금액 컬럼 추가
+                if 'thstrm_amount' in df.columns:
+                    available_columns.append('thstrm_amount')
+                
+                if 'frmtrm_amount' in df.columns:
+                    available_columns.append('frmtrm_amount')
+                
+                # 표시할 데이터 선택
+                df_show = df[available_columns].copy()
+                
+                # sj_nm/sj_div 컬럼의 약자를 전체 이름으로 변환
+                if sj_column:
+                    # 컬럼명을 'sj_nm'으로 통일
+                    if sj_column == 'sj_div':
+                        df_show.rename(columns={'sj_div': 'sj_nm'}, inplace=True)
+                    
+                    # 약자를 전체 이름으로 변환
+                    df_show['sj_nm'] = df_show['sj_nm'].apply(
+                        lambda x: sj_mapping.get(x, x) if x in sj_mapping else x
+                    )
+                
+                st.dataframe(df_show, use_container_width=True)
+                
+                # Excel 다운로드 기능 추가
+                def to_excel(df):
+                    output = BytesIO()
+                    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                        df.to_excel(writer, index=False, sheet_name='재무제표')
+                    output.seek(0)  # 버퍼의 포인터를 처음으로 되돌림
+                    return output.getvalue()
+                
+                excel_data = to_excel(df_show)
+                
+                # Excel 다운로드 버튼
+                st.download_button(
+                    label="📂 엑셀로 다운로드",
+                    data=excel_data,
+                    file_name=f"{company_name}_{year}_재무제표.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
+                
+                # CSV 다운로드 옵션도 유지
+                csv = df_show.to_csv(index=False).encode('utf-8-sig')
+                st.download_button(
+                    label="📤 CSV로 다운로드",
+                    data=csv,
+                    file_name=f"{company_name}_{year}_재무제표.csv",
+                    mime='text/csv'
+                )
+            else:
+                # 회사명으로 조회 실패 시 다른 방법 시도
+                st.warning(f"⚠️ {company_name}의 {year}년 재무제표를 찾는 중입니다. 잠시만 기다려주세요...")
+                
+                # 다른 파라미터 시도 (사업보고서, 분기보고서 등)
                 report_codes = ['11011', '11012', '11013', '11014']  # 1분기, 반기, 3분기, 사업보고서
-                target_year = int(year)
-                fs_df = None
+                fs_types = ['OFS', 'CFS']  # 재무제표, 연결재무제표
+                
+                found_df = None
                 
                 for rcode in report_codes:
-                    try:
-                        df = dart.finstate(corp_code, target_year, rcode)
-                        if df is not None and not df.empty and len(df) > 5:
-                            fs_df = df
-                            break
-                    except:
-                        continue
+                    for fs_type in fs_types:
+                        try:
+                            temp_df = dart.finstate(company_name.strip(), int(year), rpt_code=rcode, fs_div=fs_type)
+                            if temp_df is not None and not temp_df.empty and len(temp_df) > 5:
+                                found_df = temp_df
+                                break
+                        except:
+                            continue
+                    
+                    if found_df is not None:
+                        break
                 
-                if fs_df is None or fs_df.empty:
-                    st.warning(f"⚠️ {company_name}의 {year}년 재무제표가 존재하지 않거나 공시되지 않았어요.")
-                else:
+                if found_df is not None:
+                    # 데이터를 찾은 경우 처리
                     st.success(f"✅ {company_name}의 {year}년 재무제표입니다.")
                     
                     # 표시할 컬럼 선택
                     available_columns = []
                     
                     # sj_nm 또는 sj_div 확인
-                    if 'sj_nm' in fs_df.columns:
+                    if 'sj_nm' in found_df.columns:
                         sj_column = 'sj_nm'
-                    elif 'sj_div' in fs_df.columns:
+                    elif 'sj_div' in found_df.columns:
                         sj_column = 'sj_div'
                     else:
                         sj_column = None
@@ -84,14 +149,14 @@ if st.button("📥 재무제표 조회"):
                     available_columns.append('account_nm')
                     
                     # 금액 컬럼 추가
-                    if 'thstrm_amount' in fs_df.columns:
+                    if 'thstrm_amount' in found_df.columns:
                         available_columns.append('thstrm_amount')
                     
-                    if 'frmtrm_amount' in fs_df.columns:
+                    if 'frmtrm_amount' in found_df.columns:
                         available_columns.append('frmtrm_amount')
                     
                     # 표시할 데이터 선택
-                    df_show = fs_df[available_columns].copy()
+                    df_show = found_df[available_columns].copy()
                     
                     # sj_nm/sj_div 컬럼의 약자를 전체 이름으로 변환
                     if sj_column:
@@ -116,6 +181,7 @@ if st.button("📥 재무제표 조회"):
                     
                     excel_data = to_excel(df_show)
                     
+                    # Excel 다운로드 버튼
                     st.download_button(
                         label="📂 엑셀로 다운로드",
                         data=excel_data,
@@ -131,5 +197,7 @@ if st.button("📥 재무제표 조회"):
                         file_name=f"{company_name}_{year}_재무제표.csv",
                         mime='text/csv'
                     )
+                else:
+                    st.error(f"❌ {company_name}의 {year}년 재무제표를 찾을 수 없습니다.")
         except Exception as e:
             st.error(f"❌ 오류 발생: {e}")
