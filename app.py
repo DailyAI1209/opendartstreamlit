@@ -1,15 +1,15 @@
 import streamlit as st
 import pandas as pd
-from OpenDartReader import OpenDartReader  # ✅ 핵심 수정
+from OpenDartReader import OpenDartReader
+from datetime import datetime  # datetime 모듈 추가
+from io import BytesIO  # BytesIO 모듈 추가
+
+# ✅ Streamlit 기본 설정 - 가장 먼저 호출해야 함
+st.set_page_config(page_title="재무제표 조회 앱", layout="centered")
 
 API_KEY = st.secrets["API_KEY"]
 dart = OpenDartReader(API_KEY)
 
-st.set_page_config(page_title="재무제표 챗봇", layout="centered")
-st.title("📊 재무제표 조회 챗봇")
-
-# ✅ Streamlit 기본 설정
-st.set_page_config(page_title="재무제표 조회 앱", layout="centered")
 st.title("📊 재무제표 조회 및 다운로드 앱")
 
 st.markdown("회사명을 입력하면 최근 연도의 재무제표를 불러와 보여드릴게요.")
